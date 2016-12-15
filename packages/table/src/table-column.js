@@ -1,6 +1,7 @@
 import ElCheckbox from 'element-ui/packages/checkbox';
 import ElTag from 'element-ui/packages/tag';
 import objectAssign from 'element-ui/src/utils/merge';
+import { getValueByPath } from './util';
 
 let columnIdSeed = 1;
 
@@ -12,7 +13,8 @@ const defaults = {
     width: 48,
     minWidth: 48,
     realWidth: 48,
-    order: ''
+    order: '',
+    className: 'el-table-column--selection'
   },
   index: {
     width: 48,
@@ -72,8 +74,17 @@ const getDefaultColumn = function(type, options) {
   return column;
 };
 
-const DEFAULT_RENDER_CELL = function(h, { row, column }, parent) {
-  return parent.getCellContent(row, column.property, column);
+const DEFAULT_RENDER_CELL = function(h, { row, column }) {
+  const property = column.property;
+  if (column && column.formatter) {
+    return column.formatter(row, column);
+  }
+
+  if (property && property.indexOf('.') === -1) {
+    return row[property];
+  }
+
+  return getValueByPath(row, property);
 };
 
 export default {
@@ -116,11 +127,13 @@ export default {
     }
   },
 
-  render() {},
+  render() {
+    return (<div>{ this._t('default') }</div>);
+  },
 
   data() {
     return {
-      isChildColumn: false,
+      isSubColumn: false,
       columns: []
     };
   },
@@ -148,13 +161,15 @@ export default {
 
   created() {
     this.customRender = this.$options.render;
-    this.$options.render = (h) => h('div');
+    this.$options.render = (h) => {
+      return (<div>{ this._t('default') }</div>);
+    };
 
     let columnId = this.columnId = (this.$parent.tableId || (this.$parent.columnId + '_')) + 'column_' + columnIdSeed++;
 
     let parent = this.$parent;
     let owner = this.owner;
-    this.isChildColumn = owner !== parent;
+    this.isSubColumn = owner !== parent;
 
     let type = this.type;
 
@@ -182,7 +197,7 @@ export default {
       className: this.className,
       property: this.prop || this.property,
       type,
-      renderCell: DEFAULT_RENDER_CELL,
+      renderCell: null,
       renderHeader: this.renderHeader,
       minWidth,
       width,
@@ -229,15 +244,19 @@ export default {
         };
       }
 
+      if (!renderCell) {
+        renderCell = DEFAULT_RENDER_CELL;
+      }
+
       return _self.showOverflowTooltip || _self.showTooltipWhenOverflow
         ? <el-tooltip
             effect={ this.effect }
             placement="top"
             disabled={ this.tooltipDisabled }>
-            <div class="cell">{ renderCell(h, data, this._renderProxy) }</div>
-            <span slot="content">{ renderCell(h, data, this._renderProxy) }</span>
+            <div class="cell">{ renderCell(h, data) }</div>
+            <span slot="content">{ renderCell(h, data) }</span>
           </el-tooltip>
-        : <div class="cell">{ renderCell(h, data, this._renderProxy) }</div>;
+        : <div class="cell">{ renderCell(h, data) }</div>;
     };
 
     this.columnConfig = column;
@@ -281,28 +300,28 @@ export default {
 
     align(newVal) {
       if (this.columnConfig) {
-        this.columnConfig.align = newVal;
+        this.columnConfig.align = newVal ? 'is-' + newVal : null;
       }
     },
 
     width(newVal) {
       if (this.columnConfig) {
         this.columnConfig.width = newVal;
-        this.owner.scheduleLayout();
+        this.owner.store.scheduleLayout();
       }
     },
 
     minWidth(newVal) {
       if (this.columnConfig) {
         this.columnConfig.minWidth = newVal;
-        this.owner.scheduleLayout();
+        this.owner.store.scheduleLayout();
       }
     },
 
     fixed(newVal) {
       if (this.columnConfig) {
         this.columnConfig.fixed = newVal;
-        this.owner.scheduleLayout();
+        this.owner.store.scheduleLayout();
       }
     }
   },
@@ -312,12 +331,12 @@ export default {
     const parent = this.$parent;
     let columnIndex;
 
-    if (!this.isChildColumn) {
+    if (!this.isSubColumn) {
       columnIndex = [].indexOf.call(parent.$refs.hiddenColumns.children, this.$el);
     } else {
       columnIndex = [].indexOf.call(parent.$el.children, this.$el);
     }
 
-    owner.store.commit('insertColumn', this.columnConfig, columnIndex);
+    owner.store.commit('insertColumn', this.columnConfig, columnIndex, this.isSubColumn ? parent.columnConfig : null);
   }
 };

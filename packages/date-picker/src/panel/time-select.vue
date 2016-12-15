@@ -1,5 +1,5 @@
 <template>
-  <transition name="md-fade-bottom" @after-leave="$emit('dodestroy')">
+  <transition name="el-zoom-in-top" @after-leave="$emit('dodestroy')">
     <div
       v-show="visible"
       :style="{ width: width + 'px' }"
@@ -84,7 +84,7 @@
       },
 
       handleClear() {
-        this.$emit('pick');
+        this.$emit('pick', '');
       }
     },
 
